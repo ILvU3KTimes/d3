@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>热图 - 二维标量的可视化</title>
+  <style>
+    rect.bordered {
+      stroke: #A1A1A1;
+      stroke-width:1px;  
+    }
+
+    text.mono {
+      font-size: 12px;
+      font-family: Consolas, courier;
+      fill: #000;
+    }
+
+    text.axis-workweek {
+      fill: #000;
+    }
+
+    text.axis-worktime {
+      fill: #000;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="chart"></div>
+  <div id="newDiv"></div>
+  <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
+  <script type="text/javascript">
+    let array_data = [];
+    const margin = {
+      top: 50,
+      right: 0,
+      bottom: 100,
+      left: 150
+    },
+      width = 960 - margin.left - margin.right,
+      height = 550 - margin.top - margin.bottom,
+      gridSize = Math.floor(width / 24),
+      legendElementWidth = gridSize * 2,
+      buckets = 9,
+      colors = ["#ffffd9", "#edf8b1", "#c7e9b4", "#7fcdbb", "#41b6c4", "#1d91c0", "#225ea8", "#253494", "#081d58"],
+      tests = ["G", "MIN", "PTS", "FGM", "FGA", "FGP", "FTM", "FTA", "FTP", "3PM", "3PA", "3PP", "ORB", "DRB", "TRB", "AST", "STL", "BLK", "TO", "PF"];
+    // 读取文件
+    d3.csv('ball_data.csv', (error, data) => {
+      if (error) {
+        console.log(error);
+        return;
+      }
+      let colorScale = d3.scale.quantile() //按照分数位取值，可以使每个区域元素个数相等
+        .domain([0, buckets - 1, d3.max(data, d => d.G)]) // 定义域
+        .range(colors); //值域：颜色数组，函数的返回值是代表颜色的字符串
+
+      // 设置chart.svg
+      let svg = d3.select('#chart')
+        .append('svg')
+        .attr('width', width + margin.left + margin.right)
+        .attr('height', height + margin.top + margin.bottom)
+        .append('g')  // 在svg内加入一个g，并设置元素g的显示位置
+        .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
+
+      // 编辑姓名行
+      let dayLabels = svg.selectAll('.nameLabel')
+        .data(data)
+        .enter()
+        .append('text')
+        .text((d, i) => data[i].name)
+        .attr('x', 0)
+        .attr('y', (d, i) => i * gridSize )
+        .style('text-anchor', 'end')
+        .attr('transform', 'translate(-6, ' + gridSize / 1.5 + ')')
+        .attr('class', (d, i) => (i >= 0 && i <= 4) ? 'nameLabel mono axis axis-workweek' : 'nameLabel mono axis');
+
+      // 编辑测试项行
+      let testLabels = svg.selectAll('.testLabel')
+        .data(tests)
+        .enter()
+        .append('text')
+        .text(d => d)
+        .attr('x', (d, i) => i * gridSize )
+        .attr('y', 0)
+        .style("text-anchor", 'middle')
+        .attr('transform', 'translate(' + gridSize / 2 + ', -6)')
+        .attr('class', (d, i) => (i >= 7 && i <= 16) ? 'testLabel mono axis axis-worktime' : 'testLabel mono axis');
+
+      // 画出格子，暂不涂色
+      for (let i = 0; i < 10; i++) {
+        array_data[i * 20] = data[i].G;
+        array_data[i * 20 + 1] = data[i].MIN;
+        array_data[i * 20 + 2] = data[i].PTS;
+        array_data[i * 20 + 3] = data[i].FGM;
+        array_data[i * 20 + 4] = data[i].FGA;
+        array_data[i * 20 + 5] = data[i].FGP;
+        array_data[i * 20 + 6] = data[i].FTM;
+        array_data[i * 20 + 7] = data[i].FTA;
+        array_data[i * 20 + 8] = data[i].FTP;
+        array_data[i * 20 + 9] = data[i].P3PM;
+        array_data[i * 20 + 10] = data[i].P3PA;
+        array_data[i * 20 + 11] = data[i].P3PP;
+        array_data[i * 20 + 12] = data[i].ORB;
+        array_data[i * 20 + 13] = data[i].DRB;
+        array_data[i * 20 + 14] = data[i].TRB;
+        array_data[i * 20 + 15] = data[i].AST;
+        array_data[i * 20 + 16] = data[i].STL;
+        array_data[i * 20 + 17] = data[i].BLK;
+        array_data[i * 20 + 18] = data[i].TO;
+        array_data[i * 20 + 19] = data[i].PF;
+      }
+
+      let heatMap = svg.selectAll('.score')
+        .data(array_data)
+        .enter()
+        .append('rect')
+        .attr('x', (d, i) => (i % 20) * gridSize)
+        .attr('y', (d, i) => parseInt(i / 20) * gridSize)
+        .attr('rx', 6) // 设置圆角
+        .attr('ry', 6)
+        .attr('class', 'hour bordered')
+        .attr('width', gridSize)
+        .attr('height', gridSize)
+        .style('fill', '#ffffff');
+
+      // 在2s内给格子上色
+      heatMap.transition().duration(2000).style('fill', d => colorScale(d));
+      // 鼠标悬浮显示value
+      heatMap.append('title').text(d => d);
+
+      // 下方的显示条
+      let legend = svg.selectAll('.legend')
+        .data([0].concat(colorScale.quantiles()), d => d)
+        .enter()
+        .append('g')
+        .attr('class', 'legend');
+      legend.append('rect')
+        .attr('x', (d, i) => legendElementWidth * i)
+        .attr('y', height)
+        .attr('width', legendElementWidth)
+        .attr('height', gridSize / 2)
+        .style('fill', (d, i) => colors[i]);
+      legend.append('text')
+        .attr('class', 'mono')
+        .text(d => '>= ' + Math.round(d))
+        .attr('x', (d, i) => legendElementWidth * i)
+        .attr('y', height + gridSize);
+    })
+  </script>
+</body>
+
+</html>

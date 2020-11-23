@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0"> -->
+  <title>城市树结构</title>
+  <style>
+    body, html {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .node {
+      cursor: pointer;
+    }
+    .node circle {
+      fill: none;
+      stroke: #fff;
+      stroke-width: 1.5px;
+    }
+    .node text {
+      font: 10px sans-serif;
+    }
+    .link {
+      fill: none;
+      stroke: #ccc;
+      stroke-width: 1.5px;
+    }
+    .tree {
+      height: 100%;
+      margin: 0 auto;
+      background: #e0e0e0;
+      box-sizing: border-box;
+    }
+    .tree svg {
+      width: 100%;
+      height: 100%;
+    }
+    .chartTooltip {
+      position: absolute;
+      width: 200px;
+      height: auto;
+      padding: 10px;
+      box-sizing: border-box;
+      background-color: white;
+      border-radius: 5px;
+      box-shadow: 2px 2px 5px rgba(0, 0, 0, .4);
+    }
+    .chartTooltip.hidden {
+      display: none;
+    }
+    .chartTooltip p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 20px;
+      word-wrap: break-word;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="chartTooltip hidden">
+    <p>
+      <strong class="name"></strong>
+    </p>
+  </div>
+  <div class="tree" id="tree">
+
+  </div>
+  <script src="https://d3js.org/d3.v3.min.js"></script>
+  <script>
+    const width = document.getElementById('tree').offsetWidth,
+      height = document.getElementById('tree').offsetHeight;
+    let i = 0,
+      duration = 750,
+      root;
+    // 添加布局
+    let tree = d3.layout.tree().size([height, width]);
+    // let tree = d3.layout.tree().nodeSize([100, 50])  // 如果子节点太多导致重叠，nodesize会覆盖掉size 更改g的transform y轴 height/2 
+
+    // 创建对角线生成器
+    let diagonal = d3.svg.diagonal().projection(d => [d.y, d.x]);
+    // 添加缩放实践
+    let zoom = d3.behavior.zoom().scaleExtent([0.1, 100])
+      .on('zoom', () => {
+        svg.attr('transform', 'translate(' + d3.event.translate + ') scale(' + d3.event.scale + ')');
+      });
+    // 添加svg
+    let svg = d3.select('body')
+      .select('#tree')
+      .append('svg')
+      .call(zoom) // 给svg绑定zoom事件
+      .append('g')
+      .attr('transform', 'translate(150, 0)');
+    // 设置缩放起始值
+    zoom.translate([150, 0]);
+    // 获取数据
+    d3.json('tree.json', (error, res) => {
+      // 设置根节点和位置
+      root = res;
+      root.x0 = height / 2;
+      root.y0 = 0;
+      // 折叠根节点的子节点
+      root.children.forEach(v => collapse(v));
+      // 折叠后需要重绘
+      update(root);
+
+      // -------------操作函数-------------------------  
+      // 折叠函数，递归调用，有子孙就将children暂存到_children中
+      function collapse(d) {
+        if (d.children) {
+          d._children = d.children;
+          d._children.forEach(v => collapse(v));
+          d.children = null;
+        }
+      }
+      // 更新布局
+      function update(source) {
+        // 重新计算新树的布局
+        let nodes = tree.nodes(root).reverse(),
+          links = tree.links(nodes);
+  
+        // 树的深度为d.y,树的宽度最大为720，这里要分四层，所以每层*180
+        nodes.forEach(d => { d.y = d.depth * 180 }); // 树的x,y倒置了，这里的y是横向
+        // 数据连接，根据id绑定数据
+        let node = svg.selectAll('g.node')
+          .data(nodes, d => d.id // 最初新点开的节点都没有id
+            || (d.id = ++i))  // 为没有id的节点添加上id
+
+        // 隐藏悬浮层
+        let div = d3.select('.chartTooltip').style('opacity', 0);
+        let timer = null;
+
+        const nodeEnter = node.enter().append('g')
+          .attr('class', 'node')
+          .style('cursor', 'pointer')
+          .attr('transform', 'translate(' + source.y0 + ',' + source.x0 + ')')
+          // 添加鼠标移入事件
+          .on('mouseover', d => {
+            if (timer) {
+              clearTimeout(timer);
+            }
+            d3.select('.chartTooltip').transition()
+              .duration(300)
+              .style('opacity', 1)
+              .style('display', 'block');
+            // 获取当前鼠标位置
+            const transform = d3.event,
+              yPosition = transform.offsetY + 20,
+              xPosition = transform.offsetX + 20;
+            // 修改悬浮层位置
+            let chartTooltip = d3.select('.chartTooltip').style('left', xPosition + 'px').style('top', yPosition + 'px');
+            // 更新悬浮层内容
+            chartTooltip.select('.name').text(d.name);
+            // 移除悬浮层hidden样式，显示悬浮
+            chartTooltip.classed('hidden', false);
+          })
+          // 添加鼠标移除事件
+          .on('mouseout', () => {
+            // 隐藏悬浮层
+            timer = setTimeout(() => {
+              d3.select('.chartTooltip')
+                .style('opacity', 0)
+                .style('display', 'none')
+            }, 400);
+          })
+          // 添加点击事件
+          .on('click', d => {
+            click(d);
+          });
+
+        d3.select('.chartTooltip').on('mouseover', () => {
+          if (timer) {
+            clearTimeout(timer);
+          }
+          d3.select('.chartTooltip').transition()
+            .duration(300)
+            .style('opacity', 1)
+            .style('display', 'block');
+        }).on('mouseout', () => {
+          timer = setTimeout(() => {
+            d3.select('.chartTooltip').style('opacity', 0)
+              .style('display', 'none')
+          }, 400);
+        });
+
+        // 添加圆点
+        nodeEnter.append('circle')
+          .attr('r', 1e-6)
+          .style('fill', d => d._children ? '#f00' : '#fff');
+
+        // 添加文字1
+        nodeEnter.append('text')
+          .attr('x', d => d.children || d._children ? 50: 30)
+          .attr('dy', '.35em')
+          .attr('text-anchor', d => d.children || d._children ? 'end': 'start')
+          .text(d => d.name)
+          .style('fill-opacity', 1)
+          .style('font-size', '12px');
+        // 添加文字2
+        nodeEnter.append('text')
+          .attr('x', d => d.children || d._children ? 20 : 0)
+          .attr('y', d => d.children || d._children ? 25 : 20)
+          .attr('dy', '.35em')
+          .attr('text-anchor', d => d.children || d._children ? 'end' : 'start')
+          .text(d => d.name)
+          .style('fill-opacity', 1)
+          .style('font-size', '12px');
+
+        // 原有节点更新到新位置
+        const nodeUpdate = node.transition()
+          .duration(duration)
+          .attr('transform', d => 'translate(' + d.y + ',' + d.x + ')');
+        nodeUpdate.select('circle')
+          .attr('r', 4.5)
+          .attr('r', '5')
+          .style('fill', d => d._children ? '#f00' : '#f90');
+        nodeUpdate.select('text')
+          .style('fill-opacity', 1);
+
+        // 将折叠的子节点收缩回来
+        const nodeExit = node.exit().transition()
+          .duration(duration)
+          .attr('transform', d => 'translate(' + source.y + ',' + source.x + ')')
+          .remove();
+        nodeExit.select('circle').attr('r', 1e-6);
+        nodeExit.select('text').style('fill-opacity', 1);  
+
+        // 数据连接，根据目标节点的id绑定数据
+        let link = svg.selectAll('path.link')
+          .data(links, d => d.target.id);
+
+        // 增加新连接
+        link.enter().insert('path', 'g')
+          .attr('class', 'link')
+          .attr('d', d => {
+            let o = {
+              x: source.x0,
+              y: source.y0
+            };
+            return diagonal({
+              source: o,
+              target: o
+            });
+          });
+
+        // 原有连接更新位置
+        link.transition().duration(duration).attr('d', diagonal); 
+
+        // 折叠的连接，收缩到源节点处
+        link.exit().transition().duration(duration)
+          .attr('d', d => {
+            let o = {
+              x: source.x,
+              y: source.y
+            };
+            return diagonal({
+              source: o,
+              target: o
+            });
+          }).remove();
+
+        // 把旧位置存下来，用来过渡
+        nodes.forEach(d => {
+          d.x0 = d.x;
+          d.y0 = d.y;
+        }) 
+      }
+      // 切换折叠与否
+      function click(d) {
+        if (d.children) {
+          d._children = d.children;
+          d.children = null;
+        } else {
+          d.children = d._children;
+          d._children = null;
+        }
+        // 重新渲染
+        update(d);
+      }
+    });
+
+  </script>
+</body>
+
+</html>

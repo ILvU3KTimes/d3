@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>可拖动的地图</title>
+  <style>
+    .link {
+      stroke: #ccc;
+      stroke-width: 1;
+    }
+  </style>
+</head>
+
+<body>
+  <script type="text/javascript" src="https://d3js.org/d3.v3.min.js"></script>
+  <script>
+    const width = 1000, height = 1000;
+    const svg = d3.select('body').append('svg')
+      .attr('width', width)
+      .attr('height', height)
+      .append('g')
+      .attr('transform', 'translate(0, 0)');
+    const color = d3.scale.category20();
+
+    // 定义投影函数
+    const projection = d3.geo.mercator()
+      .center([107, 31]) // 地图中心点 经纬度
+      .scale(850) // 放大尺寸
+      .translate([width / 2, height / 2]); // 设定平移量
+
+    // 定义path路径函数
+    const path = d3.geo.path()
+      .projection(projection);
+
+    // 读取数据并绘图
+    d3.json('china.json', (error, root) => {
+      if (error) {
+        console.log(error);
+        return;
+      }
+      // 数据转换
+      // 定义变量 nodes 和 links
+      const nodes = [], links = [];
+      // 对于去到的每一个数据，都要进行无名函数的操作
+      root.features.forEach((d, i) => {
+        let centroidArray = path.centroid(d); // 计算各省的中心
+        let centroid = {
+          x: centroidArray[0],
+          y: centroidArray[1],
+          feature: d
+        };
+        nodes.push(centroid);
+      });
+      // d3.geom.voronoi： 用默认的访问器创建一个泰森多边形布局。
+      // voronoi.triangles: 计算delaunay mesh 为一个三角形密布
+      const triangles = d3.geom.voronoi().triangles(nodes); // 对nodes中的定点进行三角剖分，用三角形链接各定点
+
+      // 将三角形的三边存到links中
+      triangles.forEach((d, i) => {
+        links.push(edge(d[0], d[1]));
+        links.push(edge(d[1], d[2]));
+        links.push(edge(d[2], d[0]));
+      });
+
+      // 定义力学图force函数并设定force的各个参数
+      let force = d3.layout.force()
+        .size([width, height])
+        .gravity(0)
+        .charge(0)
+        .nodes(nodes)
+        .links(links)
+        .linkDistance(d => d.distance)
+        .start();
+
+      // 画点
+      let node = svg.selectAll('g')
+        .data(nodes)
+        .enter()
+        .append('g')
+        .attr('transform', d => 'translate(' + -d.x + ',' + -d.y + ')')
+        .call(force.drag)
+        .append('path')
+        .attr('transform', d => 'translate(' + d.x + ',' + d.y + ')')
+        .attr('stroke', '#000')
+        .attr('stroke-width', 1)
+        .attr('fill', (d, i) => color(i))
+        .attr('d', d => path(d.feature));
+
+      // 画线
+      let link = svg.selectAll('line')
+        .data(links)
+        .enter()
+        .append('line')
+        .attr('class', 'link')
+        .attr('x1', d => d.source.x)
+        .attr('y1', d => s.source.y)
+        .attr('x2', d => d.target.x)
+        .attr('y2', d => d.target.y);
+
+      // 运动刷新
+      force.on('tick', () => {
+        link.attr('x1', d => d.source.x)
+          .attr('y1', d => d.source.y)
+          .attr('x2', d => d.target.x)
+          .attr('y2', d => d.target.y);
+        node.attr('transform', d => 'translate(' + d.x + ',' + d.y + ')');
+      })
+    });
+    function edge(a, b) {
+      let dx = a[0] - b[0],
+        dy = a[1] - b[1];
+        return {
+          source: a, 
+          target: b,
+          distance: Math.sqrt(dx * dx + dy * dy)
+        };
+    }  
+  </script>
+</body>
+
+</html>

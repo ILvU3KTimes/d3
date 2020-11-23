@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>饼图</title>
+</head>
+
+<body>
+  <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+  <script>
+    const width = 600, height = 600;
+    const dataset = [30, 10, 43, 55, 12];
+    const pie = d3.layout.pie(); // 定义一个布局
+    const piedata = pie(dataset);
+    // console.log(piedata);
+
+    const outerRadius = 150; // 外半径
+    const innerRadius = 0; // 内半径
+    const arc = d3.svg.arc() // 弧生成器
+      .innerRadius(innerRadius) // 设置内半径
+      .outerRadius(outerRadius); // 设置外半径
+    // 有十种颜色的颜色比例尺
+    const color = d3.scale.category10();
+
+    const svg = d3.select('body')// 容器元素选择
+      .append('svg')   //并向其内添加一个svg元素
+      .attr('width', width) //设置宽高
+      .attr('height', height);
+
+    const arcs = svg.selectAll('g')
+      .data(piedata)
+      .enter()
+      .append('g')
+      .attr('transform', 'translate(' + (width / 2) + ',' + (width / 2) + ')');
+    // 绘图
+    arcs.append('path')
+      .attr('fill', (d, i) => color(i))
+      .attr('d', d => arc(d)); // 调用弧生成器，得到路径值    
+    // 为每一个弧中心添加文本
+    arcs.append('text')
+      .attr('transform', d => 'translate(' + arc.centroid(d) + ')')
+      .attr('text-anchor', 'middle')
+      .text(d => d.data);  
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>柱状图</title>
+  <style>
+    .axis path,
+    .axis line {
+      fill: none;
+      stroke: black;
+      shape-rendering: crispEdges;
+    }
+
+    .axis text {
+      font-family: sans-serif;
+      font-size: 11px;
+    }
+
+    /* .MyRect {
+      fill: steelblue;
+    } */
+
+    .MyText {
+      fill: white;
+      text-anchor: middle;
+    }
+  </style>
+</head>
+
+<body>
+  <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+  <script>
+    // 画图大小
+    const width = 400, height = 400;
+    const svg = d3.select('body')
+      .append('svg')
+      .attr('width', width)
+      .attr('height', height);
+    // 画布周围的空白
+    const padding = {
+      left: 30,
+      right: 30,
+      top: 20,
+      bottom: 20
+    };
+    // 定义一个数组
+    const dataset = [10, 20, 30, 49, 33, 24, 12, 6];
+    // x轴比例尺
+    const xScale = d3.scale.ordinal()
+      .domain(d3.range(dataset.length))
+      .rangeRoundBands([0, width - padding.left - padding.right]);
+    // y轴比例尺
+    const yScale = d3.scale.linear()
+      .domain([0, d3.max(dataset)])
+      .range([height - padding.top - padding.bottom, 0]);
+    // x轴坐标
+    const xAxis = d3.svg.axis()
+      .scale(xScale)
+      .orient('bottom');
+    // y轴坐标
+    const yAxis = d3.svg.axis()
+      .scale(yScale)
+      .orient('left');
+    // 添加矩形元素
+    const rectPadding = 4; // 矩形之间的间距
+    const rects = svg.selectAll(".MyRect") // 添加文字元素
+      .data(dataset)
+      .enter()
+      .append("rect")
+      .attr("class", "MyRect")   //把类里的 fill 属性清空
+      .attr("transform", "translate(" + padding.left + "," + padding.top + ")")
+      .attr("x", function (d, i) {
+        return xScale(i) + rectPadding / 2;
+      })
+      .attr("y", function (d) {
+        return yScale(d);
+      })
+      .attr("width", xScale.rangeBand() - rectPadding)
+      .attr("height", function (d) {
+        return height - padding.top - padding.bottom - yScale(d);
+      })
+      .attr("fill", "steelblue")       //填充颜色不要写在CSS里
+      .on("mouseover", function (d, i) {
+        d3.select(this)
+          .attr("fill", "yellow");
+      })
+      .on("mouseout", function (d, i) {
+        d3.select(this)
+          .transition()
+          .duration(500)
+          .attr("fill", "steelblue");
+      });
+    const texts = svg.selectAll('.MyText')
+      .data(dataset)
+      .enter()
+      .append('text')
+      .attr('class', 'MyText')
+      .attr('transform', 'translate(' + padding.left + ',' + padding.top + ')')
+      .attr('x', (d, i) => xScale(i) + rectPadding / 2)
+      .attr('y', d => yScale(d))
+      .attr('dx', (xScale.rangeBand() - rectPadding) / 2)
+      .attr('dy', 20)
+      .text(d => d)
+      // 添加过渡
+      .attr("y", function (d) {
+        var min = yScale.domain()[0];
+        return yScale(min);
+      })
+      .transition()
+      .delay(function (d, i) {
+        return i * 200;
+      })
+      .duration(2000)
+      .ease("bounce")
+      .attr("y", function (d) {
+        return yScale(d);
+      });
+    // 添加x轴
+    svg.append('g')
+      .attr('class', 'axis')
+      .attr('transform', 'translate(' + padding.left + ',' + (height - padding.bottom) + ')')
+      .call(xAxis);
+    // 添加y轴
+    svg.append('g')
+      .attr('class', 'axis')
+      .attr('transform', 'translate(' + padding.left + ',' + padding.top + ')')
+      .call(yAxis);        
+  </script>
+</body>
+
+</html>
