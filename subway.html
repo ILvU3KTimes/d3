@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>$Title$</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      cursor: pointer;
+    }
+
+    #subway {
+      margin: 10px;
+      overflow: scroll;
+    }
+
+    .list {
+      display: inline-block;
+      width: 100vw;
+      height: 800px;
+      margin-left: 10px;
+      border: 1px solid #000;
+      vertical-align: top;
+    }
+
+    #chartId {
+      width: 100vw;
+      height: 100vh;
+      /*border: 1px solid #000;*/
+      display: inline-block;
+    }
+
+    .svg-container {
+      display: inline-block;
+      position: relative;
+      width: 100%;
+      height: 100%;
+      /*padding-bottom: 100%; !* aspect ratio *!*/
+      vertical-align: top;
+      overflow: hidden;
+    }
+
+    .svg-content-responsive {
+      display: inline-block;
+      position: absolute;
+      top: 10px;
+      left: 0;
+    }
+  </style>
+  <script src='//cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js'></script>
+</head>
+
+<body>
+  <div id="chartId"></div>
+  <script>
+    class Subway {
+      constructor() {
+        this.lines = subwayLines;
+        this.points = subwayPoints;
+      }
+      getLines(index) {
+        return this.lines[index];
+      }
+      getChinaBypoint(element) {
+        let str = '';
+        this.points.forEach((item) => {
+          item.points.forEach((items) => {
+            if (items.state_name == element) {
+              str = items.state_nickname;
+            }
+          })
+        })
+        return str;
+      }
+    }
+    
+    var svg = d3.select("div#chartId")
+      .append('div')
+      .classed("svg-container", true)
+      .append("svg")
+      .attr("preserveAspectRatio", "xMinYMin meet")
+      .attr("viewBox", "0 0 1200 800")
+      .classed("svg-content-responsive", true);
+
+
+    const chartId = document.getElementById('chartId');
+    const widthStr = chartId.currentStyle ? chartId.currentStyle.width : window.getComputedStyle(chartId, null).width;
+    const width = widthStr.substring(0, widthStr.length - 2);
+    const svgScale = width / 1200;
+    const group = svg.append('g');
+    const lines = group.append('g');
+    const points = group.append('g');
+    const texts = group.append('g');
+    const buttons = group.append('g');
+    const tianAnMen = group.append('g');
+    const originalLineData = subwayLines;
+    const originalPointData = subwayPoints;
+    const subway = new Subway();
+    const zoom = d3.zoom().on("zoom", zoomed);
+    svg.call(zoom)
+    function zoomed() {
+      group.attr('transform-origin', `${d3.event.sourceEvent.offsetX}, ${d3.event.sourceEvent.offsetY}`)
+      group.attr("transform", d => `translate(${d3.event.transform.x}, ${d3.event.transform.y}) scale(${d3.event.transform.k})`)
+    }
+    let copyLineData = originalLineData.slice(0);
+    let copyPointData = originalPointData.slice(0);
+    let bugLines = [];
+    let shadow = svg.append('defs').append('filter').attr('id', 'shadow')//.attr('height', '125%').attr('width', '110%');
+    shadow.append('feGaussianBlur').attr('in', 'SourceGraphic').attr('stdDeviation', 1).attr('result', 'blur');
+
+    const rendering = (lineData, pointData) => {
+      lines.selectAll('g').remove();
+      points.selectAll('g').remove();
+      texts.selectAll('g').remove();
+      for (let i = 0; i < lineData.length; i++) {
+        lines.append('g')
+          .attr('class', `.${lineData[i].name}`)
+          .selectAll('path')
+          .data(lineData[i].lines)
+          .enter()
+          .append('path')
+          .attr('class', d => d.state_name)
+          .attr('class', d => d.state_name)
+          .attr('d', d => d.state_path)
+          .attr('stroke', d => {
+            if (bugLines.indexOf(d.state_name) > -1) {
+              return '#000';
+            } else {
+              return d.state_color;
+            }
+          })
+          .attr('stroke-width', d => {
+            if (bugLines.indexOf(d.state_name) > -1) {
+              return 8;
+            } else {
+              return 4;
+            }
+          })
+          .attr('fill', 'none')
+          .on('click', function (e) {
+            if (bugLines.indexOf(this.getAttribute('class')) > -1) {
+              let arr = e.state_name.split('_')
+              renderTooltip(d3.event.offsetX, d3.event.offsetY, `${subway.getChinaBypoint(arr[0])}到${subway.getChinaBypoint(arr[1])}一线有道路施工。`)
+            }
+          })
+          .attr('opacity', 0)
+          .transition()
+          .duration(500)
+          .attr('opacity', 1)
+
+        points.append('g')
+          .attr('class', `.${pointData[i].name}`)
+          .selectAll('circle')
+          .data(pointData[i].points)
+          .enter()
+          .append('circle')
+          .attr('class', d => d.state_name)
+          .attr('cx', d => d.point_x)
+          .attr('cy', d => d.point_y)
+          .attr('r', d => {
+            if (d.pivot == 1) {
+              return 5
+            } else {
+              return 3
+            }
+          })
+          .attr('fill', '#fff')
+          .attr('stroke', '#000')
+          .attr('opacity', 0)
+          .transition()
+          .duration(500)
+          .attr('opacity', 1)
+
+        texts.append('g')
+          .attr('class', `.${pointData[i].name}`)
+          .selectAll('text')
+          .data(pointData[i].points)
+          .enter()
+          .append('text')
+          .attr('x', d => d.point_x + d.dx)
+          .attr('y', d => d.point_y + d.dy)
+          .attr('font-size', '8px')
+          .attr('text-anchor', 'middle')
+          .text(d => d.state_nickname)
+          .attr('opacity', 0)
+          .transition()
+          .duration(500)
+          .attr('opacity', 1)
+      }
+    }
+
+    const initButton = () => {
+      const button_item = buttons.selectAll('g')
+        .data(copyLineData)
+        .enter()
+        .append('g')
+        .attr('class', d => d.name)
+        .attr('transform', (d, i) => {
+          return `translate(20, ${i * 35 + 55})`
+        })
+
+      button_item.append('rect')
+        .attr('fill', d => d.line_color)
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('width', 90)
+        .attr('height', 24)
+        .style('filter', 'url(#shadow)')
+        .on('click', function () {
+          subwayLines = copyLineData.filter(i => this.parentNode.getAttribute('class') == i.name);
+          subwayPoints = copyPointData.filter(i => this.parentNode.getAttribute('class') == i.name);
+          rendering(subwayLines, subwayPoints);
+          group.select('.tooltip').remove();
+        })
+
+      button_item.append('text')
+        .attr('x', 45)
+        .attr('y', 0)
+        .attr('fill', '#fff')
+        .text(d => `地铁${d.nick_name}`)
+        .attr('text-anchor', 'middle')
+        .attr('dy', '1.3em')
+        .attr('font-size', '12')
+        .on('click', function () {
+          let lines = copyLineData.filter(i => this.parentNode.getAttribute('class') == i.name);
+          let points = copyPointData.filter(i => this.parentNode.getAttribute('class') == i.name);
+          rendering(lines, points);
+          group.select('.tooltip').remove();
+        })
+
+      const all_button = buttons.append('g')
+        .attr('transform', `translate(20, 20)`);
+
+      all_button.append('rect')
+        .attr('fill', '#888')
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('width', 90)
+        .attr('height', 24)
+        .style('filter', 'url(#shadow)')
+        .on('click', function () {
+          rendering(copyLineData, copyPointData);
+        })
+
+      all_button.append('text')
+        .attr('x', 45)
+        .attr('y', 0)
+        .attr('fill', '#fff')
+        .text('全部线路')
+        .attr('text-anchor', 'middle')
+        .attr('dy', '1.3em')
+        .attr('font-size', '12')
+        .on('click', function () {
+          rendering(copyLineData, copyPointData);
+        })
+    }
+
+    const setBugLine = line_name => {
+      bugLines.push(line_name);
+      rendering(copyLineData, copyPointData);
+    }
+
+    const transformContent = content => {
+      let arr = [];
+      let count = 0;
+      let cont = '';
+      let every = 24;
+      for (let i = 0; i < content.length - 1; i++) {
+        //已经满every
+        if (count == every) {
+          count = 0;
+          cont = cont + '&&';
+          if (/^[\u4e00-\u9fa5]*$/.test(content[i])) {
+            count += 2;
+            cont = cont + content[i]
+          } else {
+            count += 1;
+            cont = cont + content[i]
+          }
+        }
+        //已经满every - 1且接下来为中文字符
+        else if (count == (every - 1) && /^[\u4e00-\u9fa5]*$/.test(content[i])) {
+
+        }
+        //中文字符
+        else if (/^[\u4e00-\u9fa5]*$/.test(content[i])) {
+          count += 2;
+          cont = cont + content[i]
+        }
+        //非中文字符
+        else {
+          count += 1;
+          cont = cont + content[i]
+        }
+      }
+      return cont.split('&&')
+    }
+
+    const renderTooltip = (x, y, c) => {
+      let content = transformContent(c);
+
+      group.select('.tooltip').remove();
+      let tooltip = group.append('g').attr('class', 'tooltip');
+      tooltip.append('path')
+        .attr('d', 'M 10,0 H 190 Q 200 0 200 10 V 130 Q 200 140 190 140 H 110 L 100,150 L 90,140 H 10 Q 0 140 0 130 V 10 Q 0 0 10 0 Z').attr('fill', '#141514').attr('stroke', '#141514').attr('stroke-width', '2');
+      tooltip.append('g').attr('class', 'delete').attr('width', 20).attr('height', 20)
+        .on('click', () => {
+          group.select('.tooltip').remove();
+        })
+      tooltip.select('.delete')
+        .append('path')
+        .attr('d', 'M 190, 0 A 10 10 0 1 1 180 10 H 200 A 10 10 0 1 1 190 0 V 20')
+        .attr('transform-origin', '190 10')
+        .attr('transform', 'translate(-2, 2) rotate(45)')
+        .attr('stroke', '#F97D7E')
+        .attr('stroke-width', 2)
+
+
+      tooltip.append('text')
+        .attr('x', 100)
+        .attr('y', 20)
+        .attr('fill', '#F97D7E')
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '16')
+        .text('公告')
+
+      let texts = tooltip.append('text')
+        .attr('fill', '#F97D7E')
+        .attr('x', 7)
+        .attr('y', 40)
+        .attr('font-size', '14')
+
+      content.forEach((d, i) => {
+        texts.append('tspan').attr('x', 6).attr('y', i * 20 + 44).text(d)
+      })
+      tooltip.attr('transform-origin', `${100} ${170}`).attr('transform', `translate(${x / svgScale - 100},${y / svgScale - 170}) rotate(-90)`).transition().duration(1000).ease(d3.easeElasticOut).attr('transform-origin', `${100} ${170}`).attr('transform', `translate(${x / svgScale - 100},${y / svgScale - 170}) rotate(0)`)
+    }
+
+    const initTianAnMen = () => {
+      console.log(2086 / 4)
+      console.log(1566 / 4) // 389V 389 H 541 V 188 H
+      tianAnMen.append('path').attr('d', 'M 505,399 H 518 V 398 H 519 V 399 H 523 V 397 H 524 V 399 H 528 V 396 H 529 V 399 H 534 V 397 H 535 V 399 H 538 V 398 H 539 V 399 H 552 L 550,393 H 543 V 395 H 536 L 537,393 H 529 V 395 H 528 V 393 H 520 L 520,395 H 514 V 393 H 507 Z').attr('fill', '#EE1B22')
+      tianAnMen.append('path').attr('d', 'M 517,393 H 519 V 392 H 528 V 391 H 529 V 392 H 538 V 393 H 540 V 391 H 541 V 390 H 540 V 389 H 541 V 388 H 539 L 537,385 H 536 L 535 386 H 521 L 520,385 H 519 L 518,388 H 516 V 389 H 517 V 390 H 516 V 391 H 517 Z').attr('fill', '#EE1B22')
+      tianAnMen.append('path').attr('d', 'M 519,391 H 520 V 390 H 519 Z').attr('fill', '#ffffff')
+      tianAnMen.append('path').attr('d', 'M 521.5,391 H 522.5 V 390 H 521.5 Z').attr('fill', '#ffffff')
+      tianAnMen.append('path').attr('d', 'M 524,391 H 525 V 390 H 524 Z').attr('fill', '#ffffff')
+      tianAnMen.append('path').attr('d', 'M 526.5,391 H 527.5 V 390 H 526.5 Z').attr('fill', '#ffffff')
+      tianAnMen.append('path').attr('d', 'M 529.5,391 H 530.5 V 390 H 529.5 Z').attr('fill', '#ffffff')
+      tianAnMen.append('path').attr('d', 'M 532,391 H 533 V 390 H 532 Z').attr('fill', '#ffffff')
+      tianAnMen.append('path').attr('d', 'M 534.5,391 H 535.5 V 390 H 534.5 Z').attr('fill', '#ffffff')
+      tianAnMen.append('path').attr('d', 'M 537,391 H 538 V 390 H 537 Z').attr('fill', '#ffffff')
+    }
+
+    rendering(copyLineData, copyPointData);
+    initButton();
+    initTianAnMen();
+
+
+    window.onload = function () {
+      let box = document.getElementById('mm');
+      let str = '';
+      for (let i = 0; i < 5; i++) {
+        let nick_name = subway.getLines(i).nick_name;
+        let arr = subway.getLines(i).lines;
+        str = str + `<p>${nick_name}</p>`
+        arr.forEach((item, index) => {
+          let points = item.state_name.split('_');
+          str = str + `<button onclick="setBugLine('${item.state_name}')">${subway.getChinaBypoint(points[0])}>${subway.getChinaBypoint(points[1])}</button>`
+        })
+      }
+      box.innerHTML = str;
+    }
+
+  </script>
+  <div class="list">
+    <p>设置故障线路</p>
+    <div id="mm">
+
+    </div>
+    <p>点击黑色，显示封路原因</p>
+  </div>
+</body>
+
+</html>
